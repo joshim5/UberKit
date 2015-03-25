@@ -30,6 +30,7 @@ static const NSString *baseURL = @"https://api.uber.com";
 @interface UberKit()
 
 @property (strong, nonatomic) NSString *accessToken;
+@property (strong, nonatomic) NSString *refreshToken;
 @property (strong, nonatomic) UIWebView *loginView;
 
 @end
@@ -38,6 +39,8 @@ static const NSString *baseURL = @"https://api.uber.com";
 
 - (void) performNetworkOperationWithURL: (NSString *) url
                          completionHandler: (void (^)(NSDictionary *, NSURLResponse *, NSError *)) completion;
+- (void) finishedPresentingLogin:(id) sender;
+
 @end
 
 @implementation UberKit
@@ -91,11 +94,24 @@ static const NSString *baseURL = @"https://api.uber.com";
 
 - (void) setUpLoginView
 {
+    // Create the LoginView
     _loginView =[[UIWebView alloc] init];
     _loginView.frame = [UIScreen mainScreen].bounds;
-    _loginView.delegate = self;
+    _loginView.delegate = self.delegate;
     _loginView.scalesPageToFit = YES;
-    [[UIApplication sharedApplication].keyWindow addSubview:_loginView];
+    
+    // Create a holder view controller
+    UIViewController *loginViewHolder = [[UIViewController alloc] init];
+    loginViewHolder.view = _loginView;
+    
+    // Hold it in a UINavigation Controller
+    UINavigationController *navigationHolder = [[UINavigationController alloc] initWithRootViewController:loginViewHolder];
+    UIBarButtonItem *doneButton = [[UIBarButtonItem alloc] initWithBarButtonSystemItem:UIBarButtonSystemItemCancel target:self action:@selector(finishedPresentingLogin:)];
+    loginViewHolder.navigationItem.leftBarButtonItem = doneButton;
+    loginViewHolder.title = @"Login to Uber";
+    
+    // Present modally
+    [self.delegate presentViewController:navigationHolder animated:YES completion:NULL];
 }
 
 - (NSString *) getStoredAuthToken
@@ -103,7 +119,7 @@ static const NSString *baseURL = @"https://api.uber.com";
     return _accessToken;
 }
 
-- (BOOL) webView:(UIWebView *)webView shouldStartLoadWithRequest:(NSURLRequest *)request navigationType:(UIWebViewNavigationType)navigationType
+- (BOOL) redirectWebView:(UIWebView *)webView shouldStartLoadWithRequest:(NSURLRequest *)request navigationType:(UIWebViewNavigationType)navigationType
 {
     NSString *url = request.URL.absoluteString;
     if ([url hasPrefix:self.redirectURL])
@@ -137,7 +153,7 @@ static const NSString *baseURL = @"https://api.uber.com";
 
 }
 
-- (void) webView:(UIWebView *)webView didFailLoadWithError:(NSError *)error
+- (void) redirectWebView:(UIWebView *)webView didFailLoadWithError:(NSError *)error
 {
     [[UIApplication sharedApplication] setNetworkActivityIndicatorVisible:NO];
     if([self.delegate respondsToSelector:@selector(uberKit:loginFailedWithError:)])
@@ -146,7 +162,7 @@ static const NSString *baseURL = @"https://api.uber.com";
     }
 }
 
-- (void) webViewDidFinishLoad:(UIWebView *)webView
+- (void) redirectWebViewDidFinishLoad:(UIWebView *)webView
 {
     [[UIApplication sharedApplication] setNetworkActivityIndicatorVisible:NO];
 }
@@ -169,11 +185,12 @@ static const NSString *baseURL = @"https://api.uber.com";
         if(!jsonError)
         {
             _accessToken = [authDictionary objectForKey:@"access_token"];
-            if(_accessToken)
+            _refreshToken = [authDictionary objectForKey:@"refresh_token"];
+            if(_accessToken && _refreshToken)
             {
-                if([self.delegate respondsToSelector:@selector(uberKit:didReceiveAccessToken:)])
+                if([self.delegate respondsToSelector:@selector(uberKit:didReceiveAccessToken:refreshToken:)])
                 {
-                    [self.delegate uberKit:self didReceiveAccessToken:_accessToken];
+                    [self.delegate uberKit:self didReceiveAccessToken:_accessToken refreshToken:_refreshToken];
                 }
             }
         }
@@ -223,6 +240,7 @@ static const NSString *baseURL = @"https://api.uber.com";
     // GET /v1/estimates/price
     
     NSString *url = [NSString stringWithFormat:@"%@/v1/estimates/price?server_token=%@&start_latitude=%f&start_longitude=%f&end_latitude=%f&end_longitude=%f", baseURL, _serverToken, startLocation.coordinate.latitude, startLocation.coordinate.longitude, endLocation.coordinate.latitude, endLocation.coordinate.longitude];
+    NSLog(@"url %@", url);
     [self performNetworkOperationWithURL:url completionHandler:^(NSDictionary *results, NSURLResponse *response, NSError *error)
      {
          if(!error)
@@ -275,25 +293,6 @@ static const NSString *baseURL = @"https://api.uber.com";
      }];
 }
 
-#pragma mark - Promotion Estimates
-
-- (void) getPromotionForLocation:(CLLocation *)startLocation endLocation:(CLLocation *)endLocation withCompletionHandler:(PromotionHandler)handler
-{
-    NSString *url = [NSString stringWithFormat:@"%@/v1/promotions?server_token=%@&start_latitude=%f&start_longitude=%f&end_latitude=%f&end_longitude=%f", baseURL, _serverToken, startLocation.coordinate.latitude, startLocation.coordinate.longitude, endLocation.coordinate.latitude, endLocation.coordinate.longitude];
-    [self performNetworkOperationWithURL:url completionHandler:^(NSDictionary *promotionDictionary, NSURLResponse *response, NSError *error)
-     {
-         if(!error)
-         {
-             UberPromotion *promotion = [[UberPromotion alloc] initWithDictionary:promotionDictionary];
-             handler(promotion, response, error);
-         }
-         else
-         {
-             handler(nil, response, error);
-         }
-     }];
-}
-
 #pragma mark - User History
 
 - (void) getUserActivityWithCompletionHandler:(CompletionHandler)completion
@@ -333,7 +332,7 @@ static const NSString *baseURL = @"https://api.uber.com";
 {
     //GET /v1/me
     
-    NSString *url = [NSString stringWithFormat:@"https://api.uber.com/v1/me?access_token=%@", _accessToken];
+    NSString *url = [NSString stringWithFormat:@"https://api.uber.com/v1.1/history?access_token=%@", _accessToken];
     [self performNetworkOperationWithURL:url completionHandler:^(NSDictionary *profileDictionary, NSURLResponse *response, NSError *error)
      {
          if(profileDictionary)
@@ -389,7 +388,6 @@ static const NSString *baseURL = @"https://api.uber.com";
 {
     [[NXOAuth2AccountStore sharedStore] requestAccessToAccountWithType:_applicationName
                                    withPreparedAuthorizationURLHandler:^(NSURL *preparedURL){
-
                                        [_loginView loadRequest:[NSURLRequest requestWithURL:preparedURL]];
                                        [[UIApplication sharedApplication] setNetworkActivityIndicatorVisible:YES];
                                    }];
@@ -413,6 +411,11 @@ static const NSString *baseURL = @"https://api.uber.com";
 @end
 
 @implementation UberKit (Private)
+
+- (void) finishedPresentingLogin:(UINavigationController *)sender
+{
+    [self.delegate dismissViewControllerAnimated:YES completion:NULL];
+}
 
 - (void) performNetworkOperationWithURL:(NSString *)url completionHandler:(void (^)(NSDictionary *, NSURLResponse *, NSError *))completion
 {

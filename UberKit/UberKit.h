@@ -31,22 +31,20 @@
 #import "UberTime.h"
 #import "UberActivity.h"
 #import "UberProfile.h"
-#import "UberPromotion.h"
 
 @class UberKit;
 
 @protocol UberKitDelegate <NSObject>
 @optional
-- (void) uberKit: (UberKit *) uberKit didReceiveAccessToken: (NSString *) accessToken;
+- (void) uberKit: (UberKit *) uberKit didReceiveAccessToken: (NSString *) accessToken refreshToken: (NSString *) accessToken;
 - (void) uberKit: (UberKit *) uberKit loginFailedWithError: (NSError *) error;
 
 @end
 
 typedef void (^CompletionHandler) (NSArray *resultsArray, NSURLResponse *response, NSError *error);
 typedef void (^ProfileHandler) (UberProfile *profile, NSURLResponse *response, NSError *error);
-typedef void (^PromotionHandler) (UberPromotion *promotion, NSURLResponse *response, NSError *error);
 
-@interface UberKit : NSObject <UIWebViewDelegate>
+@interface UberKit : NSObject
 
 @property (strong, nonatomic) NSString *serverToken;
 @property (strong, nonatomic) NSString *clientID;
@@ -54,7 +52,7 @@ typedef void (^PromotionHandler) (UberPromotion *promotion, NSURLResponse *respo
 @property (strong, nonatomic) NSString *redirectURL;
 @property (strong, nonatomic) NSString *applicationName;
 
-@property (weak, nonatomic) id <UberKitDelegate> delegate;
+@property (weak, nonatomic) UIViewController <UberKitDelegate, UIWebViewDelegate> *delegate;
 
 + (UberKit *) sharedInstance;
 
@@ -80,10 +78,6 @@ typedef void (^PromotionHandler) (UberPromotion *promotion, NSURLResponse *respo
 
 - (void) getTimeForProductArrivalWithLocation: (CLLocation *) location withCompletionHandler: (CompletionHandler) completion;
 
-#pragma mark - Promotion Estimates
-
-- (void) getPromotionForLocation: (CLLocation *) startLocation endLocation: (CLLocation *) endLocation withCompletionHandler: (PromotionHandler) handler;
-
 #pragma mark - User Activity
 
 - (void) getUserActivityWithCompletionHandler:(CompletionHandler) completion;
@@ -95,5 +89,10 @@ typedef void (^PromotionHandler) (UberPromotion *promotion, NSURLResponse *respo
 #pragma mark - Deep Linking
 
 - (void) openUberApp;
+
+#pragma mark - Hack around for WebView
+- (BOOL) redirectWebView:(UIWebView *)webView shouldStartLoadWithRequest:(NSURLRequest *)request navigationType:(UIWebViewNavigationType)navigationType;
+- (void) redirectWebView:(UIWebView *)webView didFailLoadWithError:(NSError *)error;
+- (void) redirectWebViewDidFinishLoad:(UIWebView *)webView;
 
 @end

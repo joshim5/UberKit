@@ -20,7 +20,6 @@
         _email = [dictionary objectForKey:@"email"];
         _picture = [dictionary objectForKey:@"picture"];
         _promo_code = [dictionary objectForKey:@"promo_code"];
-        _uuid = [dictionary objectForKey:@"uuid"];
     }
     return self;
 }
