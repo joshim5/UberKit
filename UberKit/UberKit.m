@@ -186,6 +186,7 @@ static const NSString *baseURL = @"https://api.uber.com";
         {
             _accessToken = [authDictionary objectForKey:@"access_token"];
             _refreshToken = [authDictionary objectForKey:@"refresh_token"];
+            
             if(_accessToken && _refreshToken)
             {
                 if([self.delegate respondsToSelector:@selector(uberKit:didReceiveAccessToken:refreshToken:)])
@@ -353,11 +354,12 @@ static const NSString *baseURL = @"https://api.uber.com";
 {
     [[NXOAuth2AccountStore sharedStore] setClientID:_clientID
                                              secret:_clientSecret
+                                              scope:[NSSet setWithObjects:@"request", @"profile", nil]
                                    authorizationURL:[NSURL URLWithString:@"https://login.uber.com/oauth/authorize"]
                                            tokenURL:[NSURL URLWithString:@"https://login.uber.com/oauth/token"]
                                         redirectURL:[NSURL URLWithString:_redirectURL]
+                                      keyChainGroup:nil
                                      forAccountType:_applicationName];
-    
     
     
     [[NSNotificationCenter defaultCenter] addObserverForName:NXOAuth2AccountStoreAccountsDidChangeNotification
