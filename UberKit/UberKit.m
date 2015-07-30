@@ -355,7 +355,7 @@ static const NSString *baseURL = @"https://api.uber.com";
 {
     [[NXOAuth2AccountStore sharedStore] setClientID:_clientID
                                              secret:_clientSecret
-                                              scope:[NSSet setWithObjects:@"profile", @"request", @"history_lite", nil]
+                                              scope:[NSSet setWithObjects:@"profile", @"request", nil]
                                    authorizationURL:[NSURL URLWithString:@"https://login.uber.com/oauth/authorize"]
                                            tokenURL:[NSURL URLWithString:@"https://login.uber.com/oauth/token"]
                                         redirectURL:[NSURL URLWithString:_redirectURL]
