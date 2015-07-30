@@ -333,9 +333,10 @@ static const NSString *baseURL = @"https://api.uber.com";
 {
     //GET /v1/me
     
-    NSString *url = [NSString stringWithFormat:@"https://api.uber.com/v1.1/history?access_token=%@", _accessToken];
+    NSString *url = [NSString stringWithFormat:@"https://api.uber.com/v1/me?access_token=%@", _accessToken];
     [self performNetworkOperationWithURL:url completionHandler:^(NSDictionary *profileDictionary, NSURLResponse *response, NSError *error)
      {
+         NSLog(@"%@", profileDictionary);
          if(profileDictionary)
          {
              UberProfile *profile = [[UberProfile alloc] initWithDictionary:profileDictionary];
@@ -354,7 +355,7 @@ static const NSString *baseURL = @"https://api.uber.com";
 {
     [[NXOAuth2AccountStore sharedStore] setClientID:_clientID
                                              secret:_clientSecret
-                                              scope:[NSSet setWithObjects:@"request", @"profile", nil]
+                                              scope:[NSSet setWithObjects:@"profile", @"request", @"history_lite", nil]
                                    authorizationURL:[NSURL URLWithString:@"https://login.uber.com/oauth/authorize"]
                                            tokenURL:[NSURL URLWithString:@"https://login.uber.com/oauth/token"]
                                         redirectURL:[NSURL URLWithString:_redirectURL]
