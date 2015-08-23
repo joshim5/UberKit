@@ -60,6 +60,7 @@ typedef void (^ProfileHandler) (UberProfile *profile, NSURLResponse *response, N
 
 - (instancetype) initWithServerToken: (NSString *) serverToken;
 - (instancetype) initWithClientID: (NSString *) clientId ClientSecret: (NSString *) clientSecret RedirectURL: (NSString *) redirectURL ApplicationName: (NSString *) applicationName;
+- (void) tokenReset;
 
 #pragma mark - Login
 
