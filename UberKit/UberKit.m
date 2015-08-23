@@ -83,6 +83,12 @@ static const NSString *baseURL = @"https://api.uber.com";
     return self;
 }
 
+- (void) tokenReset
+{
+    _accessToken = nil;
+    _refreshToken = nil;
+}
+
 #pragma mark - Login
 
 - (void) startLogin
