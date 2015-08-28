@@ -87,6 +87,22 @@ static const NSString *baseURL = @"https://api.uber.com";
 {
     _accessToken = nil;
     _refreshToken = nil;
+    _clientID = nil;
+    _clientSecret = nil;
+    _redirectURL = nil;
+    _applicationName = nil;
+    _serverToken = nil;
+    
+    for (NXOAuth2Account *account in [[NXOAuth2AccountStore sharedStore] accounts]) {
+        [[NXOAuth2AccountStore sharedStore] removeAccount:account];
+    }
+    
+    for(NSHTTPCookie *cookie in [[NSHTTPCookieStorage sharedHTTPCookieStorage] cookies]) {
+        if([[cookie domain] isEqualToString:@"uber.com"] || [[cookie domain] isEqualToString:@".uber.com"] || [[cookie domain] isEqualToString:@".facebook.com"] || [[cookie domain] isEqualToString:@".login.uber.com"]) {
+            [[NSHTTPCookieStorage sharedHTTPCookieStorage] deleteCookie:cookie];
+        }
+    }
+    [[NSUserDefaults standardUserDefaults] synchronize];
 }
 
 #pragma mark - Login
