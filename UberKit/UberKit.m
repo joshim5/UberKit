@@ -54,7 +54,7 @@ static const NSString *baseURL = @"https://api.uber.com";
     dispatch_once(&onceToken, ^{
         _sharedInstance = [[self alloc] init];
     });
-    
+
     return _sharedInstance;
 }
 
@@ -65,7 +65,7 @@ static const NSString *baseURL = @"https://api.uber.com";
     {
         _serverToken = serverToken;
     }
-    
+
     return self;
 }
 
@@ -79,7 +79,7 @@ static const NSString *baseURL = @"https://api.uber.com";
         _redirectURL = redirectURL;
         _applicationName = applicationName;
     }
-    
+
     return self;
 }
 
@@ -92,11 +92,11 @@ static const NSString *baseURL = @"https://api.uber.com";
     _redirectURL = nil;
     _applicationName = nil;
     _serverToken = nil;
-    
+
     for (NXOAuth2Account *account in [[NXOAuth2AccountStore sharedStore] accounts]) {
         [[NXOAuth2AccountStore sharedStore] removeAccount:account];
     }
-    
+
     for(NSHTTPCookie *cookie in [[NSHTTPCookieStorage sharedHTTPCookieStorage] cookies]) {
         if([[cookie domain] isEqualToString:@"uber.com"] || [[cookie domain] isEqualToString:@".uber.com"] || [[cookie domain] isEqualToString:@".facebook.com"] || [[cookie domain] isEqualToString:@".login.uber.com"]) {
             [[NSHTTPCookieStorage sharedHTTPCookieStorage] deleteCookie:cookie];
@@ -121,17 +121,17 @@ static const NSString *baseURL = @"https://api.uber.com";
     _loginView.frame = [UIScreen mainScreen].bounds;
     _loginView.delegate = self.delegate;
     _loginView.scalesPageToFit = YES;
-    
+
     // Create a holder view controller
     UIViewController *loginViewHolder = [[UIViewController alloc] init];
     loginViewHolder.view = _loginView;
-    
+
     // Hold it in a UINavigation Controller
     UINavigationController *navigationHolder = [[UINavigationController alloc] initWithRootViewController:loginViewHolder];
     UIBarButtonItem *doneButton = [[UIBarButtonItem alloc] initWithBarButtonSystemItem:UIBarButtonSystemItemCancel target:self action:@selector(finishedPresentingLogin:)];
     loginViewHolder.navigationItem.leftBarButtonItem = doneButton;
     loginViewHolder.title = @"Login to Uber";
-    
+
     // Present modally
     [self.delegate presentViewController:navigationHolder animated:YES completion:NULL];
 }
@@ -154,7 +154,6 @@ static const NSString *baseURL = @"https://api.uber.com";
             if ([key isEqualToString:@"code"])
             {
                 code = [keyValue objectAtIndex:1]; //retrieving the code
-                NSLog(@"%@", code);
             }
             if (code)
             {
@@ -166,11 +165,10 @@ static const NSString *baseURL = @"https://api.uber.com";
             {
                 NSLog(@"There was an error returning from the web view");
             }
-            
             return NO;
         }
     }
-    
+
     return YES;
 
 }
@@ -186,6 +184,13 @@ static const NSString *baseURL = @"https://api.uber.com";
 
 - (void) redirectWebViewDidFinishLoad:(UIWebView *)webView
 {
+    // as per http://stackoverflow.com/questions/6903292/uiwebview-css-injection-using-javascript
+    NSString* searchQuery = @"login.uber.com/login";
+    if ([webView.request.URL.absoluteString rangeOfString:searchQuery].location != NSNotFound) {
+        NSString *js = @"$('.background-line.push--top.push--bottom span').eq(1).hide(); $('.btn--facebook').hide()";
+        [webView stringByEvaluatingJavaScriptFromString:js];
+    }
+
     [[UIApplication sharedApplication] setNetworkActivityIndicatorVisible:NO];
 }
 
@@ -196,7 +201,7 @@ static const NSString *baseURL = @"https://api.uber.com";
     NSMutableURLRequest *request = [[NSMutableURLRequest alloc] initWithURL:[NSURL URLWithString:url]];
     [request setHTTPMethod:@"POST"];
     [request setHTTPBody:[data dataUsingEncoding:NSUTF8StringEncoding]];
-    
+
     NSURLResponse *response = nil;
     NSError *error = nil;
     NSData *authData = [NSURLConnection sendSynchronousRequest:request returningResponse:&response error:&error];
@@ -208,7 +213,7 @@ static const NSString *baseURL = @"https://api.uber.com";
         {
             _accessToken = [authDictionary objectForKey:@"access_token"];
             _refreshToken = [authDictionary objectForKey:@"refresh_token"];
-            
+
             if(_accessToken && _refreshToken)
             {
                 if([self.delegate respondsToSelector:@selector(uberKit:didReceiveAccessToken:refreshToken:)])
@@ -233,7 +238,7 @@ static const NSString *baseURL = @"https://api.uber.com";
 - (void) getProductsForLocation:(CLLocation *)location withCompletionHandler:(CompletionHandler)completion
 {
     // GET/v1/products
-    
+
     NSString *url = [NSString stringWithFormat:@"%@/v1/products?server_token=%@&latitude=%f&longitude=%f", baseURL, _serverToken, location.coordinate.latitude, location.coordinate.longitude];
     [self performNetworkOperationWithURL:url completionHandler:^(NSDictionary *results, NSURLResponse *response, NSError *error)
      {
@@ -258,18 +263,81 @@ static const NSString *baseURL = @"https://api.uber.com";
 
 #pragma mark - Price Estimates
 
+- (void) getPriceForUberPOOLWithStartLocation:(CLLocation *)startLocation endLocation:(CLLocation *)endLocation seatCount:(int)seatCount withCompletionHandler:(void (^)(UberPrice*))completion {
+
+    // GET /v1/estimates/price
+
+    NSString *url = [NSString stringWithFormat:@"%@/v1/estimates/price?server_token=%@&start_latitude=%f&start_longitude=%f&end_latitude=%f&end_longitude=%f&seat_count=%d", baseURL, _serverToken, startLocation.coordinate.latitude, startLocation.coordinate.longitude, endLocation.coordinate.latitude, endLocation.coordinate.longitude, seatCount];
+    [self performNetworkOperationWithURL:url completionHandler:^(NSDictionary *results, NSURLResponse *response, NSError *error)
+     {
+         if(!error)
+         {
+             NSArray *prices = [results objectForKey:@"prices"];
+             for(int i=0; i<prices.count; i++)
+             {
+                 UberPrice *price = [[UberPrice alloc] initWithDictionary:[prices objectAtIndex:i]];
+                 if([price.displayName isEqualToString:@"POOL"] || [price.displayName isEqualToString:@"uberPOOL"])
+                 {
+                     price.seatCount = seatCount;
+                     completion(price);
+                     break;
+                 }
+             }
+         }
+         else
+         {
+             NSLog(@"Error %@", error);
+             completion(nil);
+         }
+     }];
+}
+
+// private
+- (void) getPlacesWithId:(NSString *)placeQuery withCompletionHandler:(void (^)(NSString*))completion
+{
+    // GET /v1/places/home
+    // GET /v1/places/work
+
+    NSString *url = [NSString stringWithFormat:@"%@/v1/places/%@?access_token=%@", baseURL, placeQuery, _accessToken];
+    [self performNetworkOperationWithURL:url completionHandler:^(NSDictionary *results, NSURLResponse *response, NSError *error)
+     {
+         if(!error)
+         {
+             NSString *address = [results objectForKey:@"address"];
+             completion(address);
+         } else
+         {
+             completion(nil);
+         }
+     }];
+}
+
+- (void) getPlacesWithCompletionHandler:(void (^)(NSString*, NSString*))completion
+{
+    // GET /v1/places/home
+    // GET /v1/places/work
+
+    [self getPlacesWithId:@"home" withCompletionHandler:^(NSString *homeAddress)
+     {
+         [self getPlacesWithId:@"work" withCompletionHandler:^(NSString *workAddress)
+          {
+              completion(homeAddress, workAddress);
+          }];
+     }];
+}
+
 - (void) getPriceForTripWithStartLocation:(CLLocation *)startLocation endLocation:(CLLocation *)endLocation withCompletionHandler:(CompletionHandler)completion
 {
     // GET /v1/estimates/price
-    
-    NSString *url = [NSString stringWithFormat:@"%@/v1/estimates/price?server_token=%@&start_latitude=%f&start_longitude=%f&end_latitude=%f&end_longitude=%f", baseURL, _serverToken, startLocation.coordinate.latitude, startLocation.coordinate.longitude, endLocation.coordinate.latitude, endLocation.coordinate.longitude];
-    NSLog(@"url %@", url);
+
+    NSString *url = [NSString stringWithFormat:@"%@/v1/estimates/price?server_token=%@&start_latitude=%f&start_longitude=%f&end_latitude=%f&end_longitude=%f&seat_count=1", baseURL, _serverToken, startLocation.coordinate.latitude, startLocation.coordinate.longitude, endLocation.coordinate.latitude, endLocation.coordinate.longitude];
     [self performNetworkOperationWithURL:url completionHandler:^(NSDictionary *results, NSURLResponse *response, NSError *error)
      {
          if(!error)
          {
              NSArray *prices = [results objectForKey:@"prices"];
              NSMutableArray *availablePrices = [[NSMutableArray alloc] init];
+             BOOL gotPOOL = false;
              for(int i=0; i<prices.count; i++)
              {
                  UberPrice *price = [[UberPrice alloc] initWithDictionary:[prices objectAtIndex:i]];
@@ -277,8 +345,26 @@ static const NSString *baseURL = @"https://api.uber.com";
                  {
                      [availablePrices addObject:price];
                  }
+                 if([price.displayName isEqualToString:@"POOL"] || [price.displayName isEqualToString:@"uberPOOL"]) {
+                     // Change that display name to be a one-seater
+                     price.displayName = [price.displayName stringByAppendingString:@" — 1 psgr"];
+                     price.seatCount = 1;
+
+                     // log that we got pool
+                     gotPOOL = true;
+                 }
              }
-             completion(availablePrices, response, error);
+             if (gotPOOL) {
+                 // Look up the price for a two seater and add it too.
+                 [self getPriceForUberPOOLWithStartLocation:startLocation endLocation:endLocation seatCount:2 withCompletionHandler:^(UberPrice *price) {
+                     price.displayName = [price.displayName stringByAppendingString:@" — 2 psgr"];
+                     [availablePrices addObject:price];
+
+                     completion(availablePrices, response, error);
+                 }];
+             } else {
+                 completion(availablePrices, response, error);
+             }
          }
          else
          {
@@ -293,7 +379,7 @@ static const NSString *baseURL = @"https://api.uber.com";
 - (void) getTimeForProductArrivalWithLocation:(CLLocation *)location withCompletionHandler:(CompletionHandler)completion
 {
     //GET /v1/estimates/time
-    
+
     NSString *url = [NSString stringWithFormat:@"%@/v1/estimates/time?server_token=%@&start_latitude=%f&start_longitude=%f", baseURL, _serverToken, location.coordinate.latitude, location.coordinate.longitude];
     [self performNetworkOperationWithURL:url completionHandler:^(NSDictionary *results, NSURLResponse *response, NSError *error)
      {
@@ -321,7 +407,7 @@ static const NSString *baseURL = @"https://api.uber.com";
 - (void) getUserActivityWithCompletionHandler:(CompletionHandler)completion
 {
     //GET /v1.1/history
-    
+
     NSString *url = [NSString stringWithFormat:@"https://api.uber.com/v1.1/history?access_token=%@", _accessToken];
     [self performNetworkOperationWithURL:url completionHandler:^(NSDictionary *activity, NSURLResponse *response, NSError *error)
      {
@@ -354,11 +440,10 @@ static const NSString *baseURL = @"https://api.uber.com";
 - (void) getUserProfileWithCompletionHandler:(ProfileHandler)handler
 {
     //GET /v1/me
-    
+
     NSString *url = [NSString stringWithFormat:@"https://api.uber.com/v1/me?access_token=%@", _accessToken];
     [self performNetworkOperationWithURL:url completionHandler:^(NSDictionary *profileDictionary, NSURLResponse *response, NSError *error)
      {
-         NSLog(@"%@", profileDictionary);
          if(profileDictionary)
          {
              UberProfile *profile = [[UberProfile alloc] initWithDictionary:profileDictionary];
@@ -377,19 +462,19 @@ static const NSString *baseURL = @"https://api.uber.com";
 {
     [[NXOAuth2AccountStore sharedStore] setClientID:_clientID
                                              secret:_clientSecret
-                                              scope:[NSSet setWithObjects:@"profile", @"request", nil]
+                                              scope:[NSSet setWithObjects:@"profile", @"request", @"places", nil]
                                    authorizationURL:[NSURL URLWithString:@"https://login.uber.com/oauth/authorize"]
                                            tokenURL:[NSURL URLWithString:@"https://login.uber.com/oauth/token"]
                                         redirectURL:[NSURL URLWithString:_redirectURL]
                                       keyChainGroup:nil
                                      forAccountType:_applicationName];
-    
-    
+
+
     [[NSNotificationCenter defaultCenter] addObserverForName:NXOAuth2AccountStoreAccountsDidChangeNotification
                                                       object:[NXOAuth2AccountStore sharedStore]
                                                        queue:nil
                                                   usingBlock:^(NSNotification *aNotification){
-                                                      
+
                                                       if (aNotification.userInfo){
                                                           NSLog(@"Success! Received access token");
                                                       }
@@ -397,15 +482,15 @@ static const NSString *baseURL = @"https://api.uber.com";
                                                           NSLog(@"Account removed, lost access");
                                                       }
                                                   }];
-    
+
     [[NSNotificationCenter defaultCenter] addObserverForName:NXOAuth2AccountStoreDidFailToRequestAccessNotification
                                                       object:[NXOAuth2AccountStore sharedStore]
                                                        queue:nil
                                                   usingBlock:^(NSNotification *aNotification){
-                                                      
+
                                                       NSError *error = [aNotification.userInfo objectForKey:NXOAuth2AccountStoreErrorKey];
                                                       NSLog(@"Error! %@", error.localizedDescription);
-                                                      
+
                                                   }];
 }
 
@@ -446,13 +531,13 @@ static const NSString *baseURL = @"https://api.uber.com";
 {
     NSURLSessionConfiguration *configuration = [NSURLSessionConfiguration defaultSessionConfiguration];
     NSURLSession *session = [NSURLSession sessionWithConfiguration:configuration];
-    
+
     [[session dataTaskWithURL:[NSURL URLWithString:url] completionHandler:^(NSData *data, NSURLResponse *response, NSError *error) {
         if (error == nil) {
 
             NSError *jsonError = nil;
             NSDictionary *serializedResults = [NSJSONSerialization JSONObjectWithData:data options:0 error:&jsonError];
-            
+
             if (jsonError == nil) {
                 completion(serializedResults, response, jsonError);
             } else {

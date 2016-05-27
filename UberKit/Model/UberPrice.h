@@ -32,9 +32,15 @@
 @property (nonatomic) NSString *currencyCode;
 @property (nonatomic) NSString *displayName;
 @property (nonatomic) NSString *estimate;
+@property (nonatomic) NSString *estimateRaw;
 @property (nonatomic) int lowEstimate;
 @property (nonatomic) int highEstimate;
 @property (nonatomic) float surgeMultiplier;
+@property (nonatomic) int seatCount;
+
+// For consistency with UberProduct
+@property (nonatomic, readonly) NSString *display_name;
+@property (nonatomic, readonly) NSString *product_id;
 
 - (instancetype) initWithDictionary: (NSDictionary *) dictionary;
 

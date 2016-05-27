@@ -71,7 +71,13 @@ typedef void (^ProfileHandler) (UberProfile *profile, NSURLResponse *response, N
 
 - (void) getProductsForLocation: (CLLocation *) location withCompletionHandler: (CompletionHandler) completion;
 
+# pragma mark - Place Lookups
+
+- (void) getPlacesWithCompletionHandler:(void (^)(NSString*, NSString*))completion;
+
 #pragma mark - Price Estimates
+
+- (void) getPriceForUberPOOLWithStartLocation:(CLLocation *)startLocation endLocation:(CLLocation *)endLocation seatCount:(int)seatCount withCompletionHandler:(void (^)(UberPrice*))completion;
 
 - (void) getPriceForTripWithStartLocation: (CLLocation *) startLocation endLocation:(CLLocation *) endLocation withCompletionHandler: (CompletionHandler) completion;
 
